@@ -1,0 +1,47 @@
+import json
+import boto3
+import ast
+import urllib3
+from urllib.parse import urlencode
+
+def lambda_handler(event, context):
+    ses = boto3.client('ses')
+    s3 = boto3.client('s3')
+    response = s3.list_objects_v2(Bucket='test-bucket-email', Prefix='testfile')
+    all = response['Contents']
+    latest = max(all, key=lambda x: x['LastModified'])
+    file=((latest.get('Key')).split('/'))[-1]
+    
+    presigned_url = s3.generate_presigned_url('get_object',
+                                                    Params={'Bucket':'test-bucket-email',
+                                                            'Key': 'testfile/'+file},
+                                                    ExpiresIn=300)
+#    print(response)                                                                                                
+#
+    response = ses.send_email(
+    Source='awssesemail@gmail.com',
+    Destination={
+        'ToAddresses': [
+            'awssesemail@gmail.com'
+        ],
+        
+    },
+    Message={
+        'Subject': {
+            'Data': 'A file is uploaded in s3'
+        },
+        'Body': {
+            'Text': {
+                'Data': 'Click on below link to view file \n'+presigned_url
+            }
+        }
+    },
+    ReplyToAddresses=[
+        'awssesemail@gmail.com',
+    ],
+    ReturnPath='awssesemail@gmail.com'
+    )
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Hello from Lambda!')
+    }
